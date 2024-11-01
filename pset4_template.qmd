@@ -1,5 +1,5 @@
 ---
-title: "Your Title"
+title: "PS4 Nasser & Daniel"
 format: 
   pdf:
     keep-tex: true
@@ -27,10 +27,10 @@ Please refer to the minilesson on code style
 ## Submission Steps (10 pts)
 1. This problem set is a paired problem set.
 2. Play paper, scissors, rock to determine who goes first. Call that person *Partner 1*.
-    - Partner 1 (name and cnet ID):
+    - Partner 1 (Nasser Alshaya and alshaya):
     - Partner 2 (name and cnet ID):
 3. Partner 1 will accept the `ps4` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
-4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\_\_\*\* \*\*\_\_\*\*
+4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\NA\*\* \*\*\_\_\*\*
 5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  (1 point)
 6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
 7. Knit your `ps4.qmd` to an PDF file to make `ps4.pdf`, 
@@ -43,19 +43,178 @@ Please refer to the minilesson on code style
 
 ## Download and explore the Provider of Services (POS) file (10 pts)
 
-1. 
-2. 
-    a.
-    b.
-3. 
+1. I pulled the columns related to: Provider Subtype, Provider Type, Number of Times of Changing Ownership, Effective Date of Most Recent Ownership Change, City Name, Facility Name, CMS Certification Number, Termination Status, Date the provider was Terminated, and Zip Code.
+
+```{python}
+import pandas as pd
+import os
+<<<<<<< HEAD
+base_path = r"C:/Users/danie/Documents/GitHub/problem-set-4-nasser-daniel/POS"
+path_data = os.path.join(base_path,
+ "pos2016.csv")
+=======
+base_path = r"/Users/nasser.alshaya/Desktop/problem-set-4-nasser-daniel/POS"
+path_data = os.path.join(base_path,"pos2016.csv")
+>>>>>>> e18afaa8fa88b06ed138d7305aab9fab47b152b1
+df = pd.read_csv(path_data)
+df.columns
+```
+```{python}
+df_2016 = df[
+    (df["PRVDR_CTGRY_SBTYP_CD"] == 1) & 
+    (df["PRVDR_CTGRY_CD"] == 1)]
+len(df_2016)
+```
+
+3. The number of short-term hospitals per is plotted below, the number of hospitals increases every year, starting from 7245 in 2016 reaching to 7303 in 2019. 
+```{python}
+path_data = os.path.join(base_path,
+ "pos2017.csv")
+df_2017 = pd.read_csv(path_data)
+ 
+path_data = os.path.join(base_path,
+ "pos2018.csv")
+df_2018 = pd.read_csv(path_data, encoding_errors = "ignore")
+
+path_data = os.path.join(base_path,
+ "pos2019.csv")
+df_2019 = pd.read_csv(path_data, encoding_errors = "ignore")
+```
+
+
+```{python}
+df_2017 = df_2017[
+    (df_2017["PRVDR_CTGRY_SBTYP_CD"] == 1) & 
+    (df_2017["PRVDR_CTGRY_CD"] == 1)]
+
+df_2018 = df_2018[
+    (df_2018["PRVDR_CTGRY_SBTYP_CD"] == 1) & 
+    (df_2018["PRVDR_CTGRY_CD"] == 1)]
+
+df_2019 = df_2019[
+    (df_2019["PRVDR_CTGRY_SBTYP_CD"] == 1) & 
+    (df_2019["PRVDR_CTGRY_CD"] == 1)]
+
+# Add year column for each df for plot:
+df_2016["year"] = 2016
+df_2017["year"] = 2017
+df_2018["year"] = 2018
+df_2019["year"] = 2019
+df_pos = pd.concat([df_2016,df_2017,df_2018,df_2019],
+ ignore_index = True)
+```
+
+```{python}
+import altair as alt
+import warnings 
+warnings.filterwarnings('ignore')
+alt.renderers.enable("png")
+alt.data_transformers.disable_max_rows()
+bars = alt.Chart(df_pos).mark_bar().encode(
+    alt.X("year:N", title = "Year"),
+    alt.Y("count()",title = None, axis = None)
+).properties(
+    title = "Number of Short-term Hospitals per Year",
+    width = 350, height = 200)
+text = bars.mark_text(
+    align="center",
+    baseline="bottom",
+    dy=-5  
+).encode(
+    text=alt.Text("count():Q")  
+)
+
+bars + text
+```
+
 4. 
-    a.
-    b.
+    a. Upon aggregating the data based on the CMS certificate of each hospital, it seems that the numbers are identical to what previously found in (3)
+
+```{python}
+bars = alt.Chart(df_pos).transform_aggregate(
+    unique_hospitals="count(PRVDR_NUM)",groupby=["year"]
+    ).mark_bar().encode(
+        x=alt.X("year:N", title="Year"),
+    y=alt.Y("unique_hospitals:Q", axis = None, title = None)
+).properties(
+    title="Count of Unique Hospitals per Year",
+    width=350,
+    height=200
+)
+text = bars.mark_text(
+    align="center",
+    baseline="bottom",
+    dy=-5  
+).encode(
+    text=alt.Text("unique_hospitals:Q")  
+)
+
+bars + text
+```
+
+    b. Upon comparing the two plots, the number of hospitals per year is identical to the number of unique hospitals based on the CMS certificate, this tells us that the data is strucutured in a way that prevents duplicate entries of hospitals per year, and the records are well strucutured to represent the number of hospitals accurately.
+
+  
 
 ## Identify hospital closures in POS file (15 pts) (*)
 
 1. 
+```{python}
+df_pos["PRVDR_NUM"] = df_pos["PRVDR_NUM"].astype(int)
+#PGM_TRMNTN_CD is the indicator variable for active/inactive status in a given year
+def active_inactive(active_year, inactive_year):
+    #to capture the hospitals that were active in the year prior, ex. 2016
+    starting_year = df_pos[(df_pos["year"] == active_year) & (df_pos["PGM_TRMNTN_CD"] == 0)]
+
+    #identify the codes of active hospitals in that year, ex. active hospitals in 2016
+    starting_year_codes = starting_year["PRVDR_NUM"].unique()
+
+    #identify hospitals in following year (ex. 2017) using codes of previously active hospitals
+    following_year_active = df_pos[(df_pos["year"] == inactive_year) & df_pos["PRVDR_NUM"].isin(starting_year_codes)]
+
+    #filtering to identify closures in following year (ex. hospitals that closed in 2017)
+    following_year_inactive = following_year_active[following_year_active["PGM_TRMNTN_CD"] != 0]
+    return following_year_inactive
+
+#active 2016, inactive 2017
+active_inactive_2016_2017 = active_inactive(2016, 2017)
+
+#active 2017, inactive 2018
+active_inactive_2017_2018 = active_inactive(2017, 2019)
+
+#active 2018, inactive 2018
+active_inactive_2018_2019 = active_inactive(2018, 2019)
+
+inactive_hospitals = pd.concat([active_inactive_2016_2017, active_inactive_2017_2018, active_inactive_2018_2019])
+
+#accessing the last available year for each of the inactive hospitals
+fac_name_year_list = []
+inactive_hospitals_unique = inactive_hospitals["PRVDR_NUM"].unique()
+for i in inactive_hospitals_unique:
+    hospital = inactive_hospitals[inactive_hospitals["PRVDR_NUM"] == i]
+    fac_name_year = []
+    fac_name_year.append(hospital["year"].max())
+    fac_name_year.append(hospital["FAC_NAME"].unique()[0])
+    fac_name_year_list.append(fac_name_year)
+    
+#turning the list into a dataframe, and then merging that with selected columns to answer the question.
+fac_name_year_df = pd.DataFrame(fac_name_year_list, columns = ["year", "FAC_NAME"])
+facility_name_zip = inactive_hospitals[["FAC_NAME", "ZIP_CD"]]
+facility_name_zip = facility_name_zip.merge(fac_name_year_df, how = "left", on = "FAC_NAME")
+
+facility_name_zip.shape[0]
+```
+
+There are 259 hospitals that meet this criteria.
+
 2. 
+```{python}
+facility_name_zip = facility_name_zip.sort_values(by = "FAC_NAME")
+facility_name_zip.head(10)[["FAC_NAME", "year"]]
+
+```
+
+
 3. 
     a.
     b.
@@ -64,9 +223,51 @@ Please refer to the minilesson on code style
 ## Download Census zip code shapefile (10 pt) 
 
 1. 
-    a.
-    b. 
+    a. There are five files zipped in this folder as the following:
+
+    `dbf`: stores attribute information of spatial features, size 6.4 MB.
+    `shp`: shape file which has has feature geometrics, size 837.5 MB.
+    `prj`: describes the Coordinate Reference System (CRS), size 165 bytes.
+    `shx`: contains positional index in .shp, size 265 KB.
+    `xml`: metadata about the dataset, size 16 KB.
+
+    b.     `dbf`:size 6.4 MB.
+    `shp`: size 837.5 MB.
+    `prj`: size 165 bytes.
+    `shx`: size 265 KB.
+    `xml`: size 16 KB.
+    
 2. 
+```{python}
+import geopandas as gpd 
+```
+
+```{python}
+filepath = "/Users/nasser.alshaya/Desktop/problem-set-4-nasser-daniel/gz_2010_us_860_00_500k"
+
+path_shp = os.path.join(filepath,
+ "gz_2010_us_860_00_500k.shp")
+df_zip = gpd.read_file(path_shp)
+```
+
+```{python}
+texas_zip_codes = df_zip[df_zip["ZCTA5"].str.startswith(
+    ("70","71","72","73","74","75","76","77","78","79"))]
+```
+
+```{python}
+'''
+texas_zip_codes[texas_zip_codes["ZCTA5"].isin(df_2016["ZIP_CD"])]
+'''
+```
+
+```{python}
+import matplotlib.pyplot as plt
+texas_zip_codes.plot(facecolor="none", linewidth=0.2)
+plt.axis("off")
+plt.show()
+```
+
 
 ## Calculate zip code’s distance to the nearest hospital (20 pts) (*)
 
