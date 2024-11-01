@@ -43,28 +43,309 @@ Please refer to the minilesson on code style
 
 ## Download and explore the Provider of Services (POS) file (10 pts)
 
+import packages
+```{python}
+import pandas as pd
+import numpy as np
+import altair as alt
+import os
+import json
+alt.renderers.enable("png") 
+import shapely
+import geopandas
+```
+
 1. 
+```{python}
+raw_health = r"C:/Users/andre/Documents/GitHub/problem-set-4-andrew-justine"
+path_health16 = os.path.join(raw_health, "pos2016.csv")
+health16 = pd.read_csv(path_health16) 
+
+path_health17 = os.path.join(raw_health, "pos2017.csv")
+health17 = pd.read_csv(path_health17)
+
+path_health18 = os.path.join(raw_health, "pos2018.csv")
+health18 = pd.read_csv(path_health18, encoding = "ISO-8859-1")
+
+path_health19 = os.path.join(raw_health, "pos2019.csv")
+health19 = pd.read_csv(path_health19, encoding = "ISO-8859-1")
+```
+
+Attribution: I asked ChatGPT how to solve the unicode errors I 
+was encountering, and I was advised to try out different
+encodings, including "ISO-8859-1".
+
+Q1 Answer:
+```{python}
+variables_list = health16.columns
+
+print("These are the variables I selected: ", variables_list)
+```
+
+
 2. 
+Function for subsetting the datasets to short term hospitals
+```{python}
+def short_term(X):
+  Y = X[(X["PRVDR_CTGRY_SBTYP_CD"] == 1) & (X["PRVDR_CTGRY_CD"] == 1)]
+  return(Y)
+
+```
+
+Run function on health16
+```{python}
+short16 = short_term(health16)
+
+print("There are ", len(short16), " hospitals in this dataset")
+```
+
     a.
     b.
 3. 
-4. 
+
+short term function on health17
+```{python}
+short17 = short_term(health17)
+
+```
+
+short term function on health18
+```{python}
+short18 = short_term(health18)
+
+```
+
+```{python}
+short19 = short_term(health19)
+
+```
+
+Appending the data together
+```{python}
+# add a "year" column to each dataset, for future disagg
+def add_column(X, the_year):
+  year_col = []
+  i = 0
+  while i < len(X):
+    year_col.append(the_year)
+    i += 1
+  X["Year"] = year_col
+  return(X)
+
+#run on each dataframe
+add_column(short16, 2016)
+
+add_column(short17, 2017)
+
+add_column(short18, 2018)
+
+add_column(short19, 2019)
+```
+
+Attribution: I asked my code why my len(X) and length of index
+values were not equal, and was advised to set i equal to 0 
+instead of 1. 
+
+Concat the dataframes together
+```{python}
+
+concat_1 = pd.concat([short16, short17], axis = 0, ignore_index = True)
+
+concat_2 = pd.concat([concat_1, short18], axis = 0, ignore_index = True)
+
+df_health = pd.concat([concat_2, short19], axis = 0, ignore_index = True)
+
+```
+
+Attribution: https://datacarpentry.org/python-ecology-lesson/05-merging-data.html 
+
+Adding an observation variable to the dataframe
+```{python}
+def  one_dummy(C):
+  observation = []
+  i = 0
+  while 1 > 0 and i < C:
+    observation.append(1)
+    i += 1
+  return(observation)
+
+#add observation column to df
+df_health["Observation"] = one_dummy(len(df_health))
+
+```
+
+Attribution: modifying my own code from Pset 1
+
+Graph observations by year
+```{python}
+alt.data_transformers.enable("vegafusion")
+
+alt.Chart(df_health).mark_bar().encode(
+  alt.X("Year:N"),
+  alt.Y("sum(Observation)")
+)
+
+
+```
+
+4.
+
+```{python}
+# create a function to iterate through PRVDR_NUM 
+def unique_comp(column):
+  unique_box = []
+  for entry in column:
+    if entry not in unique_box:
+      unique_box.append(entry)
+    else:
+      pass
+  return(unique_box)
+
+#save list
+unique_list = unique_comp(df_health["PRVDR_NUM"])
+
+```
+
+Filter by year in order to make numbers for each year, save those numbers to a df
+```{python}
+# make series with the four years
+the_years = [2016, 2017, 2018, 2019]
+
+#2016
+unique_len_16 = len(unique_comp(df_health["PRVDR_NUM"][df_health["Year"] == 2016]))
+
+#2017
+unique_len_17 = len(unique_comp(df_health["PRVDR_NUM"][df_health["Year"] == 2017]))
+
+#2018
+unique_len_18 = len(unique_comp(df_health["PRVDR_NUM"][df_health["Year"] == 2018]))
+
+#2019
+unique_len_19 = len(unique_comp(df_health["PRVDR_NUM"][df_health["Year"] == 2019]))
+
+# make the lens into a list
+len_list = [unique_len_16, unique_len_17, unique_len_18, unique_len_19]
+
+#form into dataframe
+
+the_data = {
+  "Years": the_years,
+   "Unique_CMS": len_list 
+}
+
+df_CMS = pd.DataFrame(the_data)
+
+```
+
+Plot the graph
+```{python}
+alt.Chart(df_CMS).mark_bar().encode(
+  alt.X("Years:N"),
+  alt.Y("Unique_CMS")
+)
+
+
+```
+
+Attribution: https://www.geeksforgeeks.org/different-ways-to-create-pandas-dataframe/ 
     a.
     b.
 
 ## Identify hospital closures in POS file (15 pts) (*)
 
-1. 
-2. 
-3. 
-    a.
-    b.
-    c.
+1. Create a list of all hospitals that were active in 2016 that were suspected to have closed by 2019. Record the facility name and zip of each hospital as well as the year of suspected closure. How many hospitals fit in this definition?
+
+587 hospitals fit this definition, out of 29085 total hospitals.
+
+```{python}
+active_2016 = df_health[(df_health['PGM_TRMNTN_CD'] == 0) & (df_health['Year'] == 2016)]
+
+def find_suspected_closures(active_2016, df_health):
+    suspected_closures = pd.DataFrame(columns=['FAC_NAME', 'ZIP_CD', 'Year'])
+    
+    for index, row in active_2016.iterrows():
+        FAC_NAME = row['FAC_NAME']
+        ZIP_CD = row['ZIP_CD']
+
+        for Year in range(2017, 2020):
+            closed_check = df_health[(df_health['FAC_NAME'] == FAC_NAME) & (df_health['Year'] == Year)]           
+            if not closed_check.empty and closed_check['PGM_TRMNTN_CD'].values[0] != 0:
+                new_entry = pd.DataFrame({
+                    'FAC_NAME': [FAC_NAME],
+                    'ZIP_CD': [ZIP_CD],
+                    'Year': [Year]
+                })
+                suspected_closures = pd.concat([suspected_closures, new_entry], ignore_index=True)
+    return suspected_closures
+
+suspected_closures = find_suspected_closures(active_2016, df_health)
+
+print(len(suspected_closures))
+```
+
+
+2. Sort this list of hospitals by name and report the names and year of suspected closure for the first 10 rows.
+
+```{python}
+print(suspected_closures[['FAC_NAME', 'Year']].sort_values(by='FAC_NAME').head(10))
+```
+
+3. Not all closures are true closures, remove any suspected closures that are zipcodes where the number does not decrease in the year after the suspected closure.
+
+    a. Among the suspected closures, how many hospitals fit this definition? After correcting, how many do you have left?
+
+```{python}
+def find_filtered_closures(suspected_closures):
+    filtered_closures = pd.DataFrame(columns=['FAC_NAME', 'ZIP_CD', 'Year'])
+    counts = suspected_closures.groupby(['ZIP_CD', 'Year']).size().unstack(fill_value=0)
+    kept_zip_codes = []
+ 
+    for ZIP_CD in counts.index:
+        if counts.loc[ZIP_CD, 2017] > counts.loc[ZIP_CD, 2018] or \
+           counts.loc[ZIP_CD, 2018] > counts.loc[ZIP_CD, 2019]:
+            kept_zip_codes.append(ZIP_CD)
+
+    for ZIP_CD in kept_zip_codes:
+        for Year in range(2017, 2020):
+            if ZIP_CD in counts.index and counts.loc[ZIP_CD, Year] > 0:
+                fac_in_zip = suspected_closures[
+                    (suspected_closures['ZIP_CD'] == ZIP_CD) & 
+                    (suspected_closures['Year'] == Year)
+                ]
+
+                for index, row in fac_in_zip.iterrows():
+                    new_entry = pd.DataFrame({
+                        'FAC_NAME': [row['FAC_NAME']],
+                        'ZIP_CD': [ZIP_CD],
+                        'Year': [Year]
+                    })
+                    filtered_closures = pd.concat([filtered_closures, new_entry], ignore_index=True)
+
+    return filtered_closures
+
+
+filtered_closures = find_filtered_closures(suspected_closures)
+
+
+print(filtered_closures)
+
+num_mergers = len(filtered_closures)
+print(f"Number of suspected closures that may be mergers/acquisitions: {num_mergers}")
+
+```
+
+
+
+    b. Sort this list of corrected hospital closures by name and report the first ten rows.
+
+    c. 
 
 ## Download Census zip code shapefile (10 pt) 
 
 1. 
-    a.
+    a. The five file types in this download are DBF files, PRJ files,
+     SHP files, SHX files, and xmlfile
+
     b. 
 2. 
 
