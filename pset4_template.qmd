@@ -24,13 +24,14 @@ We use (`*`) to indicate a problem that we think might be time consuming.
 Please refer to the minilesson on code style
 **[here](https://uchicago.zoom.us/rec/share/pG_wQ-pHTQrJTmqNn4rcrw5V194M2H2s-2jdy8oVhWHkd_yZt9o162IWurpA-fxU.BIQlSgZLRYctvzp-)**.
 
+
 ## Submission Steps (10 pts)
 1. This problem set is a paired problem set.
 2. Play paper, scissors, rock to determine who goes first. Call that person *Partner 1*.
-    - Partner 1 (name and cnet ID):
-    - Partner 2 (name and cnet ID):
+    - Partner 1 (name and cnet ID): Alejandra Silva - aosilva
+    - Partner 2 (name and cnet ID): Guillermina Marto - gmarto
 3. Partner 1 will accept the `ps4` and then share the link it creates with their partner. You can only share it with one partner so you will not be able to change it after your partner has accepted. 
-4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: \*\*\_\_\*\* \*\*\_\_\*\*
+4. "This submission is our work alone and complies with the 30538 integrity policy." Add your initials to indicate your agreement: **AS** **GM**
 5. "I have uploaded the names of anyone else other than my partner and I worked with on the problem set **[here](https://docs.google.com/forms/d/185usrCREQaUbvAXpWhChkjghdGgmAZXA3lPWpXLLsts/edit)**"  (1 point)
 6. Late coins used this pset: \*\*\_\_\*\* Late coins left after submission: \*\*\_\_\*\*
 7. Knit your `ps4.qmd` to an PDF file to make `ps4.pdf`, 
@@ -41,41 +42,513 @@ Please refer to the minilesson on code style
 
 **Important:** Repositories are for tracking code. **Do not commit the data or shapefiles to your repo.** The best way to do this is with `.gitignore`, which we have covered in class. If you do accidentally commit the data, Github has a [guide](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#removing-files-from-a-repositorys-history). The best course of action depends on whether you have pushed yet. This also means that both partners will have to download the initial raw data and any data cleaning code will need to be re-run on both partners' computers. 
 
+
 ## Download and explore the Provider of Services (POS) file (10 pts)
 
 1. 
+
+```{python}
+
+import requests
+import pandas as pd
+import altair as alt
+
+base_url = "https://data.cms.gov/data-api/v1/dataset/{uuid}/data"
+uuid = "96ba2257-2080-49c1-9e5b-7726f9f83cad"
+
+columns = [
+    "PRVDR_CTGRY_CD",        # Provider Category Code
+    "PRVDR_CTGRY_SBTYP_CD",  # Provider Subtype Code
+    "PRVDR_NUM",             # CMS Certification Number
+    "PGM_TRMNTN_CD",         # Termination Code
+    "FAC_NAME",              # Facility Name
+    "ZIP_CD",                # ZIP Code
+    "STATE_CD"               # State Abbreviation
+]
+
+columns_param = ",".join(columns)
+
+offset = 0
+limit = 5000  #  API allows size to be set to 5000
+
+all_data = []
+
+while True:
+    params = {
+
+        "column": columns_param,
+        "size": limit,
+        "offset": offset
+    }
+
+    url = base_url.format(uuid=uuid)
+    response = requests.get(url, params=params)
+
+    if response.status_code != 200:
+        print(f"Error: {response.status_code}, {response.text}")
+        break
+
+    data = response.json()
+
+    if not data:
+        print("No more data available.")
+        break
+
+    all_data.extend(data)
+
+    offset += limit
+    print(f"Fetched {len(data)} rows, moving to next batch...")
+
+df = pd.DataFrame(all_data)
+
+
+df.to_csv("pos2016.csv", index=False)
+
+
+
+```
+
 2. 
-    a.
-    b.
+```{python}
+
+df = pd.read_csv("pos2016.csv")
+
+
+df_st_hospitals = df[
+    (df["PRVDR_CTGRY_CD"] == 1) & 
+    (df["PRVDR_CTGRY_SBTYP_CD"] == 1)
+]
+
+num_hospitals = df_st_hospitals.shape[0]
+print(f"Number of short-term hospitals reported in the data: {num_hospitals}")
+
+print(df_st_hospitals)
+
+```
+
+The number of short-term hospitals reported in the dataset for Q4 2016 is 7,245.
+
+According to the American Hospital Association (AHA) Annual Survey, the estimated number of short-term hospitals is 4,500–5,000. Similarly, the CMS Hospital Compare dataset indicates around 4,800 hospitals.
+
+The discrepancy could be due to the narrower definition used in our dataset and the timing of data collection, which only includes hospitals in Q4 2016. Additionally, the CMS dataset might not include hospitals that do not participate in Medicare or Medicaid, which could lead to lower numbers.
+
 3. 
+
+```{python}
+
+uuid_dict = {
+    "2016Q4": "96ba2257-2080-49c1-9e5b-7726f9f83cad",
+    "2017Q4": "d338dc0d-641c-486a-b586-88a662f36963",
+    "2018Q4": "4ff7fcfb-2a40-4f76-875d-a4ac2aec268e",
+    "2019Q4": "03cca0cc-13a0-4b8d-82c4-57185b6bbfbd"
+}
+
+columns = [
+    "PRVDR_CTGRY_CD",        # Provider Category Code
+    "PRVDR_CTGRY_SBTYP_CD",  # Provider Subtype Code
+    "PRVDR_NUM",             # CMS Certification Number
+    "PGM_TRMNTN_CD",         # Termination Code
+    "FAC_NAME",              # Facility Name
+    "ZIP_CD",                # ZIP Code
+    "STATE_CD"               # State Abbreviation
+]
+
+columns_param = ",".join(columns)
+
+combined_data = []
+
+for year_quarter, uuid in uuid_dict.items():
+    offset = 0
+    limit = 5000  
+    all_data = []
+
+    print(f"Fetching data for {year_quarter}...")
+
+    while True:
+        params = {
+            "column": columns_param,
+            "size": limit,
+            "offset": offset
+        }
+
+        url = f"https://data.cms.gov/data-api/v1/dataset/{uuid}/data"
+        response = requests.get(url, params=params)
+
+        if response.status_code != 200:
+            print(f"Error: {response.status_code}, {response.text}")
+            break
+
+        data = response.json()
+
+        if not data:
+            print("No more data available.")
+            break
+
+        all_data.extend(data)
+
+        offset += limit
+        print(f"Fetched {len(data)} rows for {year_quarter}, moving to next batch...")
+
+    year_data = pd.DataFrame(all_data)
+    year_data["Year"] = year_quarter[:4]
+
+    # filtro por las condiciones
+    year_data = year_data[
+    (year_data["PRVDR_CTGRY_CD"] == "01") & 
+    (year_data["PRVDR_CTGRY_SBTYP_CD"] == "01")
+]  
+
+    combined_data.append(year_data)
+
+combined_df = pd.concat(combined_data, axis=0)
+
+combined_df.to_csv("combined_data.csv", index=False)
+
+print(f"Total records retrieved across all years: {combined_df.shape[0]}")
+```
+
+```{python}
+import altair as alt
+
+# Plotting Number of Observations Per Year
+
+combined_year_df = combined_df.groupby("Year").size().reset_index(name="Number of Observations")
+
+obs_chart = alt.Chart(combined_year_df).mark_bar().encode(
+    x=alt.X("Year:O", title="Year"),  
+    y=alt.Y("Number of Observations:Q", title="Number of Observations"),
+    tooltip=["Year", "Number of Observations"]
+).properties(
+    title="Number of Observations Per Year"
+)
+
+obs_chart.display()
+
+
+# Plotting Number of Unique Hospitals Per Year
+unique_hospitals = combined_df.groupby("Year")["PRVDR_NUM"].nunique().reset_index(name="Number of Unique Hospitals")
+
+unique_hospitals_chart = alt.Chart(unique_hospitals).mark_bar().encode(
+    x=alt.X("Year:O", title="Year"), 
+    y=alt.Y("Number of Unique Hospitals:Q", title="Number of Unique Hospitals"),
+    tooltip=["Year", "Number of Unique Hospitals"]
+).properties(
+    title="Number of Unique Hospitals Per Year"
+)
+
+unique_hospitals_chart.display()
+
+
+#print("Observations Per Year:")
+#print(observations_per_year)
+#print("\nUnique Hospitals Per Year:")
+#print(unique_hospitals_per_year)
+
+# Compare the two plots to understand the structure of the data.
+# Observations per year may be higher due to multiple records for the same hospital.
+# Unique hospitals per year give an idea of how many distinct hospitals are in the dataset for each year.
+
+```
 4. 
     a.
     b.
 
 ## Identify hospital closures in POS file (15 pts) (*)
 
-1. 
+1. Termination code equal to 00=ACTIVE PROVIDER. The data contain only up to the code 07. The other codes apply to CLIA. 
+
+```{python}
+
+combined_df["PGM_TRMNTN_CD"] = combined_df["PGM_TRMNTN_CD"].astype(str)
+
+inactive_codes = ["01", "02", "03", "04", "05", "06", "07"]
+
+active_2016 = combined_df[(combined_df["Year"] == "2016") & (combined_df["PGM_TRMNTN_CD"] == "00")]
+
+print(active_2016.head())
+
+suspected_closures = []
+
+for idx, hospital in active_2016.iterrows():
+    provider_num = hospital["PRVDR_NUM"]
+    facility_name = hospital["FAC_NAME"]
+    zip_code = hospital["ZIP_CD"]
+    
+    for year in ["2017", "2018", "2019"]:
+        yearly_data = combined_df[(combined_df["PRVDR_NUM"] == provider_num) & (combined_df["Year"] == year)]
+        
+        if yearly_data.empty or yearly_data["PGM_TRMNTN_CD"].isin(inactive_codes).any():
+            suspected_closures.append({
+                "Provider Number": provider_num,
+                "Facility Name": facility_name,
+                "ZIP Code": zip_code,
+                "Year Closed": year
+            })
+            break  
+
+suspected_closures_df = pd.DataFrame(suspected_closures)
+num_closures = len(suspected_closures_df)
+
+display(f"Total suspected hospital closures: {num_closures}")
+display(suspected_closures_df.head()) 
+
+
+```
+
 2. 
+
+```{python}
+sorted_closures = suspected_closures_df.sort_values(by="Facility Name")
+
+top_10_closures = sorted_closures[["Facility Name", "Year Closed"]].head(10)
+
+display(top_10_closures)
+
+```
+
 3. 
-    a.
-    b.
-    c.
+
+```{python}
+import pandas as pd
+import numpy as np
+
+# Step 1: Count the number of active hospitals (PGM_TRMNTN_CD == "00") by ZIP_CD (zip code) for each year
+active_hospitals_by_year = (
+    combined_df[combined_df['PGM_TRMNTN_CD'] == "00"]
+    .groupby(['ZIP_CD', 'Year'])
+    .size()
+    .unstack(fill_value=0)
+)
+
+# Step 2: Create columns with differences between years for each ZIP_CD
+# Calculate the differences between consecutive years
+active_hospitals_by_year['diff_2017_2016'] = active_hospitals_by_year["2017"] - \
+    active_hospitals_by_year["2016"]
+active_hospitals_by_year['diff_2018_2017'] = active_hospitals_by_year["2018"] - \
+    active_hospitals_by_year["2017"]
+active_hospitals_by_year['diff_2019_2018'] = active_hospitals_by_year["2019"] - \
+    active_hospitals_by_year["2018"]
+
+# Reset index to prepare for merging
+active_hospitals_by_year = active_hospitals_by_year.reset_index()
+
+# Step 3: Merge the active_hospitals_by_year dataframe with suspected_closures by ZIP Code
+merged_df = pd.merge(suspected_closures_df, active_hospitals_by_year,
+                     left_on='ZIP Code', right_on='ZIP_CD', how='left')
+
+# Initialize the closure_difference column with NaN
+merged_df['closure_difference'] = np.nan
+
+# Loop through each row and set closure_difference based on Year Closed
+for index, row in merged_df.iterrows():
+    if row['Year Closed'] == "2017":
+        merged_df.at[index, 'closure_difference'] = row['diff_2018_2017']
+    elif row['Year Closed'] == "2018":
+        merged_df.at[index, 'closure_difference'] = row['diff_2019_2018']
+    else:
+        # Optionally set it to a specific value if Year Closed doesn't match any condition
+        merged_df.at[index, 'closure_difference'] = None
+
+# Step 5: Create a dummy variable that is 1 if the closure_difference is 0 or greater, else 0
+merged_df['closure_dummy'] = merged_df['closure_difference'].apply(
+    lambda x: 1 if pd.notna(x) and x > 0 else (0 if pd.notna(x) else np.nan)
+)
+
+# Count the number of rows where closure_dummy is 1
+count_of_ones = merged_df['closure_dummy'].sum()
+display(f"Number of rows with closure_dummy = 1: {count_of_ones}")
+
+# Count the number of rows where closure_dummy is 0
+count_of_zeros = (merged_df['closure_dummy'] == 0).sum()
+display(f"Number of rows with closure_dummy = 0: {count_of_zeros}")
+
+
+```
+
+
+```{python}
+# Question a: Count hospitals that fit the definition of potentially being a merger/acquisition
+count_of_ones = merged_df['closure_dummy'].sum()
+display(f"Number of hospitals potentially being a merger/acquisition: {count_of_ones}")
+
+# Question b: Count hospitals left after correcting for potential mergers
+corrected_closures = merged_df[merged_df['closure_dummy'] == 0]
+count_of_zeros = (merged_df['closure_dummy'] == 0).sum()
+display(f"Number of hospitals left after correcting for potential mergers: {count_of_zeros}")
+
+# Question c: Sort the corrected list of closures by hospital name and display the first 10 rows
+sorted_corrected_closures = corrected_closures.sort_values(by='Facility Name').head(10)
+display(sorted_corrected_closures[['Facility Name', 'ZIP Code', 'Year Closed', 'closure_difference']])
+```
+
 
 ## Download Census zip code shapefile (10 pt) 
 
-1. 
-    a.
-    b. 
-2. 
+
+
+
 
 ## Calculate zip code’s distance to the nearest hospital (20 pts) (*)
 
 1. 
+
+The GeoDataFrame, `zips_all_centroids`, has dimensions that correspond to the number of unique ZIP code areas, with two main columns: `ZIP Code` and `geometry`. The `ZIP Code` column holds the specific ZIP Code Tabulation Area (ZCTA) for each entry, representing each distinct postal region. The `geometry` column contains the centroid point of each ZIP code area, with each point indicating the latitude and longitude coordinates for the center of the ZIP code region. This structure allows for further geographic analysis, such as calculating distances to the nearest hospital.
+
+```{python}
+import geopandas as gpd
+
+# Calculate centroids for each ZIP code and create a new GeoDataFrame with these centroids
+zip_shapefile['centroid'] = zip_shapefile.geometry.centroid  # Calculate centroids
+
+# Convert this information into a new GeoDataFrame, focusing only on the centroids and ZIP code info
+zips_all_centroids = gpd.GeoDataFrame(zip_shapefile[['ZCTA5', 'centroid']], geometry='centroid')
+
+# Rename columns for clarity
+zips_all_centroids.columns = ['ZIP Code', 'geometry']
+
+# Display the dimensions and column descriptions
+print("Dimensions of zips_all_centroids:", zips_all_centroids.shape)
+print("Columns in zips_all_centroids:", zips_all_centroids.columns)
+
+# Display the first few rows to verify the output
+zips_all_centroids.head()
+
+```
+
 2. 
+
+```{python}
+
+# Define ZIP code prefixes for Texas and its neighboring states
+texas_prefixes = list(range(750, 799))
+# Adding neighboring state prefixes
+bordering_prefixes = texas_prefixes + [70, 71, 72, 73, 74, 87, 88]
+
+# Convert prefixes to strings for matching with the 'ZIP Code' column
+texas_prefixes_str = tuple(map(str, texas_prefixes))
+bordering_prefixes_str = tuple(map(str, bordering_prefixes))
+
+# Filter the zips_all_centroids GeoDataFrame for Texas ZIP codes
+zips_texas_centroids = zips_all_centroids[
+    zips_all_centroids['ZIP Code'].str.startswith(texas_prefixes_str)
+]
+
+# Filter the zips_all_centroids GeoDataFrame for Texas and bordering states ZIP codes
+zips_texas_borderstates_centroids = zips_all_centroids[
+    zips_all_centroids['ZIP Code'].str.startswith(bordering_prefixes_str)
+]
+
+# Print out the number of unique ZIP codes in each subset
+num_texas_zips = zips_texas_centroids['ZIP Code'].nunique()
+num_bordering_zips = zips_texas_borderstates_centroids['ZIP Code'].nunique()
+
+print("Unique ZIP codes in Texas subset:", num_texas_zips)
+print("Unique ZIP codes in Texas and bordering states subset:", num_bordering_zips)
+
+
+```
+
 3. 
+
+We used an inner join to retain only the ZIP codes in Texas and neighboring states that have at least one hospital, ensuring that `zips_withhospital_centroids` includes only relevant ZIP codes. The join was conducted on the `ZIP Code` column from `zips_texas_borderstates_centroids` and `ZIP_CD` from `zips_with_hospital`, allowing us to filter specifically for ZIP codes that had at least one active hospital in 2016. The result is a GeoDataFrame, `zips_withhospital_centroids`, which contains only the ZIP codes in Texas or bordering states with at least one hospital in that year.
+
+```{python}
+
+# Step 1: Filter hospitals active in 2016 and count by ZIP code
+
+hospitals_per_zip = combined_df[(combined_df['Year'] == 2016) & (
+    combined_df['PGM_TRMNTN_CD'] == "00")].groupby('ZIP_CD').size().reset_index(name='hospital_count')
+
+
+# Filter to keep only ZIP codes with at least one hospital
+zips_with_hospital = hospitals_per_zip[hospitals_per_zip['hospital_count'] > 0]
+
+# Step 2: Merge this count data with zips_texas_borderstates_centroids on ZIP code
+# Ensuring ZIP codes match data types between datasets
+zips_texas_borderstates_centroids['ZIP Code'] = zips_texas_borderstates_centroids['ZIP Code'].astype(
+    str)
+zips_with_hospital['ZIP_CD'] = zips_with_hospital['ZIP_CD'].astype(str)
+
+# Perform an inner join to keep only ZIP codes with hospitals in 2016
+zips_withhospital_centroids = zips_texas_borderstates_centroids.merge(
+    zips_with_hospital, left_on='ZIP Code', right_on='ZIP_CD', how='inner'
+)
+
+# Display
+display(zips_withhospital_centroids.head())
+
+```
+
+
 4. 
     a.
+
+```{python}
+from shapely.ops import nearest_points
+import time
+
+# The geometry column is set as active in both GeoDataFrames
+zips_texas_centroids = zips_texas_centroids.set_geometry('geometry')
+zips_withhospital_centroids = zips_withhospital_centroids.set_geometry('geometry')
+
+# Subset to 10 ZIP codes from zips_texas_centroids for testing
+test_zips_texas = zips_texas_centroids.head(10)
+
+# Start timer
+start_time = time.time()
+
+# Calculate distances for each ZIP code in test subset
+distances = []
+for idx, row in test_zips_texas.iterrows():
+    # Calculate the distance to the nearest hospital ZIP code
+    nearest_hospital = zips_withhospital_centroids.distance(row.geometry).min()
+    distances.append(nearest_hospital)
+
+# End timer
+end_time = time.time()
+elapsed_time = end_time - start_time
+
+# Output the time taken and estimated total time for the full dataset
+print("Time taken for 10 ZIP codes:", elapsed_time, "seconds")
+
+# Estimate total time 
+total_rows = len(zips_texas_centroids)
+estimated_total_time = (elapsed_time / 10) * total_rows
+print("Estimated time for entire dataset:", estimated_total_time, "seconds")
+
+```
     b.
+The full dataset calculation completed significantly faster than initially estimated, suggesting that the small sample used for estimation might have over-predicted the time required. This difference could be due to optimizations in the spatial library that enhance performance with larger datasets, as well as variations in system performance between runs. Small sample estimates can sometimes lead to overestimations when the operation scales more efficiently across a larger volume of data. 
+
+```{python}
+import time
+
+# Start timer for the full calculation
+start_time_full = time.time()
+
+# Calculate distances for each ZIP code in the entire Texas subset
+full_distances = []
+for idx, row in zips_texas_centroids.iterrows():
+    # Calculate the distance to the nearest hospital ZIP code
+    nearest_hospital_distance = zips_withhospital_centroids.distance(row.geometry).min()
+    full_distances.append(nearest_hospital_distance)
+
+# End timer
+end_time_full = time.time()
+elapsed_time_full = end_time_full - start_time_full
+
+# Output the actual time taken
+print("Actual time taken for full dataset:", elapsed_time_full, "seconds")
+
+# Compare to estimated time from previous step
+estimated_total_time = (elapsed_time / 10) * len(zips_texas_centroids)  # Using the previous subset estimate
+print("Estimated time for entire dataset:", estimated_total_time, "seconds")
+print("Difference between actual and estimated time:", abs(elapsed_time_full - estimated_total_time), "seconds")
+
+
+```
+
+    c.
 5. 
     a.
     b.
